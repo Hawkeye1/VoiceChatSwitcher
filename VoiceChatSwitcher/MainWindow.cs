@@ -14,12 +14,38 @@ namespace VoiceChatSwitcher
 {
     public partial class MainWindow : Form
     {
+        private ISkype skypeMachine;
+        private Keys muteKey;
+
         public MainWindow()
         {
-            InitializeComponent();
             RegisterSkype4ComDll();
+            skypeMachine = new Skype();
+            InitializeComponent();
             KeyTextBox.KeyDown += KeyTextBox_KeyDown;
             this.MouseDown += MainWindow_MouseDown;
+            HideButton.KeyDown += HideButton_KeyDown;
+            HideButton.KeyUp += HideButton_KeyUp;
+            CheckSkypeClient();
+        }
+
+        private void HideButton_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyData == muteKey)
+            {
+                skypeMachine.Mute = false;
+            }
+        }
+
+        private void HideButton_KeyDown(object sender, KeyEventArgs e)
+        {
+            //if (!KeyTextBox.Focused)
+            //{
+            if (e.KeyData == muteKey)
+            {
+                skypeMachine.Mute = true;
+            }
+            //}
         }
 
         private void MainWindow_MouseDown(object sender, MouseEventArgs e)
@@ -30,12 +56,12 @@ namespace VoiceChatSwitcher
         private void KeyTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             InitKey(e.KeyData);
-
         }
 
         private void InitKey(Keys key)
         {
             KeyTextBox.Text = key.ToString();
+            muteKey = key;
         }
 
         private void RegisterSkype4ComDll ()
@@ -60,6 +86,12 @@ namespace VoiceChatSwitcher
             }
         }
 
-
+        private void CheckSkypeClient()
+        {
+            if (!skypeMachine.Client.IsRunning)
+            {
+                MessageBox.Show("Клиент Skype не запущен");
+            }
+        }
     }
 }
