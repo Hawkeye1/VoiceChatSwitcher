@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using SKYPE4COMLib;
+using System.Runtime.InteropServices;
 
 namespace VoiceChatSwitcher
 {
@@ -24,28 +25,8 @@ namespace VoiceChatSwitcher
             InitializeComponent();
             KeyTextBox.KeyDown += KeyTextBox_KeyDown;
             this.MouseDown += MainWindow_MouseDown;
-            HideButton.KeyDown += HideButton_KeyDown;
-            HideButton.KeyUp += HideButton_KeyUp;
             CheckSkypeClient();
-        }
-
-        private void HideButton_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (e.KeyData == muteKey)
-            {
-                skypeMachine.Mute = false;
-            }
-        }
-
-        private void HideButton_KeyDown(object sender, KeyEventArgs e)
-        {
-            //if (!KeyTextBox.Focused)
-            //{
-            if (e.KeyData == muteKey)
-            {
-                skypeMachine.Mute = true;
-            }
-            //}
+            SetHook();
         }
 
         private void MainWindow_MouseDown(object sender, MouseEventArgs e)
@@ -92,6 +73,87 @@ namespace VoiceChatSwitcher
             {
                 MessageBox.Show("Клиент Skype не запущен");
             }
+        }
+
+        private const int WH_KEYBOARD_LL = 13;
+
+        private LowLevelKeyboardProcDelegate m_callback;
+        private IntPtr m_hHook;
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowsHookEx")]
+        private static extern IntPtr SetWindowsHookEx(
+            int idHook,
+            LowLevelKeyboardProcDelegate lpfn,
+            IntPtr hMod, int dwThreadId);
+
+        [DllImport("user32.dll", EntryPoint = "UnhookWindowsHookEx")]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("Kernel32.dll", EntryPoint = "GetModuleHandle")]
+        private static extern IntPtr GetModuleHandle(IntPtr lpModuleName);
+
+        [DllImport("user32.dll", EntryPoint = "CallNextHookEx")]
+        private static extern IntPtr CallNextHookEx(
+            IntPtr hhk,
+            int nCode, IntPtr wParam, IntPtr lParam);
+
+        private IntPtr LowLevelKeyboardHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode < 0)
+            {
+                return CallNextHookEx(m_hHook, nCode, wParam, lParam);
+            }
+            else
+            {
+                var khs = (KeyboardHookStruct)Marshal.PtrToStructure(lParam,
+                    typeof(KeyboardHookStruct));
+
+                if (khs.VirtualKeyCode == Convert.ToInt32(muteKey) &&
+                    wParam.ToInt32() == 256)     
+                {
+                    // some processing
+                    MessageBox.Show("You down: " + muteKey.ToString());
+                    IntPtr val = new IntPtr(1);
+                    return val;
+                }
+                if (khs.VirtualKeyCode == Convert.ToInt32(muteKey) &&
+                    wParam.ToInt32() == 257)     
+                {
+                    // some processing
+                    MessageBox.Show("You up: " + muteKey.ToString());
+                    IntPtr val = new IntPtr(1);
+                    return val;
+                }
+                else
+                {
+                    return CallNextHookEx(m_hHook, nCode, wParam, lParam);
+                }
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KeyboardHookStruct
+        {
+            public readonly int VirtualKeyCode;
+            public readonly int ScanCode;
+            public readonly int Flags;
+            public readonly int Time;
+            public readonly IntPtr ExtraInfo;
+        }
+
+        private delegate IntPtr LowLevelKeyboardProcDelegate(
+            int nCode, IntPtr wParam, IntPtr lParam);
+
+        public void SetHook()
+        {
+            m_callback = LowLevelKeyboardHookProc;
+            m_hHook = SetWindowsHookEx(WH_KEYBOARD_LL, m_callback,
+                GetModuleHandle(IntPtr.Zero), 0);
+        }
+
+        public void Unhook()
+        {
+            UnhookWindowsHookEx(m_hHook);
         }
     }
 }
